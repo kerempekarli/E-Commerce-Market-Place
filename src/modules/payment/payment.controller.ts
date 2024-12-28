@@ -1,32 +1,29 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
+// src/modules/payment/payment.controller.ts
+
+import { Controller, Post, Body, Param } from '@nestjs/common';
 import { PaymentService } from './payment.service';
+import { PaymentMethod } from './enums/payment-method.enum';
+import { OrderService } from '../order/order.service';
 
 @Controller('payments')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly orderService: OrderService,
+  ) {}
 
-  @Get()
-  async findAll() {
-    return this.paymentService.findAll();
+  @Post(':orderId/process')
+  async processPayment(@Param('orderId') orderId: number, @Body() body: { method: PaymentMethod; amount: number }) {
+    const order = await this.orderService.findOne(orderId);
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    return this.paymentService.processPayment(order, body.method, body.amount);
   }
 
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.paymentService.findOne(Number(id));
-  }
-
-  @Post()
-  async create(@Body() body: { orderId: number; amount: number; method: string }) {
-    return this.paymentService.createPayment({
-      orderId: body.orderId, // Doğru property adı kullanıldı
-      amount: body.amount,
-      method: body.method,
-      status: 'PENDING',
-    });
-  }
-
-  @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Body() body: { status: string }) {
-    return this.paymentService.updatePaymentStatus(Number(id), body.status);
+  @Post(':paymentId/refund')
+  async refundPayment(@Param('paymentId') paymentId: number, @Body() body: { refundAmount: number }) {
+    return this.paymentService.refundPayment(paymentId, body.refundAmount);
   }
 }

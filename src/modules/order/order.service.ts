@@ -3,99 +3,80 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
-import { VariantOption } from '../product/entities/variant-option.entity';
-import { Product } from '../product/entities/product.entity';
 
 @Injectable()
 export class OrderService {
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
-
     @InjectRepository(OrderItem)
     private readonly orderItemRepository: Repository<OrderItem>,
-
-    @InjectRepository(Product)
-    private readonly productRepository: Repository<Product>,
-
-    @InjectRepository(VariantOption)
-    private readonly variantOptionRepository: Repository<VariantOption>,
   ) {}
 
-  async createOrder(orderData: {
-    userId: number;
-    items: {
-      productId: number;
-      quantity: number;
-      variantOptionIds?: number[];
-    }[];
-  }): Promise<Order> {
-    // 1. Order oluştur
-    const order = this.orderRepository.create({
-      user: { id: orderData.userId } as any,
+  /**
+   * Yeni bir sipariş oluştur.
+   */
+  async createOrder(data: { userId: number; items: { productId: number; quantity: number; price: number }[] }): Promise<Order> {
+    // 1) Order oluştur
+    let order = this.orderRepository.create({
+      customer: { id: data.userId } as any, // User entity'sine referans
+      status: 'PENDING',
+      totalPrice: 0,
+      items: [], // Henüz eklemedik, aşağıda ekleyeceğiz
     });
 
-    // 2. Order kaydet
-    const savedOrder = await this.orderRepository.save(order);
+    order = await this.orderRepository.save(order);
 
-    // 3. OrderItems oluşturma
+    // 2) OrderItem oluşturma
     const orderItems: OrderItem[] = [];
-    for (const item of orderData.items) {
-      const product = await this.productRepository.findOne({
-        where: { id: item.productId },
-      });
-
-      if (!product) {
-        throw new BadRequestException(`Product with ID ${item.productId} not found`);
-      }
-
-      // 4. Varyant seçenekleri stok kontrolü ve fiyat hesaplama
-      let totalPrice = product.price; // Temel ürün fiyatı
-      if (item.variantOptionIds && item.variantOptionIds.length > 0) {
-        const variantOptions = await this.variantOptionRepository.findByIds(item.variantOptionIds);
-
-        if (variantOptions.length !== item.variantOptionIds.length) {
-          throw new BadRequestException(`Some variant options not found.`);
-        }
-
-        // Her bir varyant opsiyonun stok ve fiyat farkını ekle
-        for (const option of variantOptions) {
-          if (option.stock < item.quantity) {
-            throw new BadRequestException(`Insufficient stock for variant option: ${option.name}`);
-          }
-          // Fiyata opsiyon farkını ekle (null ise 0 say)
-          totalPrice += option.priceModifier ?? 0;
-        }
-
-        // Stok düşürme
-        for (const option of variantOptions) {
-          option.stock -= item.quantity;
-          await this.variantOptionRepository.save(option);
-        }
-      }
-
+    let totalPrice = 0;
+    for (const item of data.items) {
       const newItem = this.orderItemRepository.create({
-        order: savedOrder,
-        product: product,
+        order,
+        product: { id: item.productId } as any, // Product referansı
         quantity: item.quantity,
-        price: totalPrice,
-        variantOptionIds: item.variantOptionIds || null,
+        price: item.price,
       });
-
+      totalPrice += item.price * item.quantity;
       orderItems.push(newItem);
     }
-
-    // 5. Tüm orderItems kaydet
     await this.orderItemRepository.save(orderItems);
 
-    // 6. Siparişi ilişkileriyle birlikte geri döndür
-    return this.findOne(savedOrder.id);
+    // 3) Siparişin totalPrice alanını güncelle
+    order.totalPrice = totalPrice;
+    await this.orderRepository.save(order);
+
+    return this.findOne(order.id);
   }
 
-  async findOne(orderId: number): Promise<Order> {
-    return this.orderRepository.findOne({
-      where: { id: orderId },
-      relations: ['items', 'items.product'],
+  /**
+   * Tüm siparişleri getir (ilişkileriyle birlikte).
+   */
+  async findAll(): Promise<Order[]> {
+    return this.orderRepository.find({
+      relations: ['items', 'items.product', 'customer'],
     });
+  }
+
+  /**
+   * Belirli id'li siparişi getir.
+   */
+  async findOne(orderId: number): Promise<Order> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['items', 'items.product', 'customer'],
+    });
+    if (!order) throw new BadRequestException('Order not found.');
+    return order;
+  }
+
+  /**
+   * Sipariş durumunu güncelle (ör. PENDING -> COMPLETED).
+   */
+  async updateStatus(orderId: number, newStatus: string): Promise<Order> {
+    const order = await this.findOne(orderId);
+    order.status = newStatus;
+    await this.orderRepository.save(order);
+    return order;
   }
 }

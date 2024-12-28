@@ -31,7 +31,7 @@ export class Product {
   updatedAt: Date;
 
   @OneToMany(() => Review, (review) => review.product)
-  reviews: Review[];
+  reviews: Review[]; // Ürüne yapılan incelemeler
 
   @OneToMany(() => Comment, (comment) => comment.product)
   comments: Comment[];

@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
+// src/modules/payment/payment.service.ts
+
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
+import { PaymentMethod } from './enums/payment-method.enum';
+import { PaymentStatus } from './enums/payment-status.enum';
+import { PaymentStrategyFactory } from './strategies/payment-strategy.factory';
 import { Order } from '../order/entities/order.entity';
 
 @Injectable()
@@ -9,33 +14,75 @@ export class PaymentService {
   constructor(
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+    private readonly strategyFactory: PaymentStrategyFactory,
   ) {}
 
-  async findAll(): Promise<Payment[]> {
-    return this.paymentRepository.find({ relations: ['order'] });
-  }
+  /**
+   * Bir sipariş için ödeme başlatır / tamamlar
+   * @param order Sipariş entity’si
+   * @param method Kullanıcının seçtiği ödeme yöntemi
+   * @param amount Tutar
+   */
+  async processPayment(order: Order, method: PaymentMethod, amount: number) {
+    // Payment kaydını PENDING olarak oluştur
+    let payment = this.paymentRepository.create({
+      order,
+      method,
+      amount,
+      status: PaymentStatus.PENDING,
+    });
+    payment = await this.paymentRepository.save(payment);
 
-  async findOne(id: number): Promise<Payment> {
-    return this.paymentRepository.findOne({ where: { id }, relations: ['order'] });
-  }
+    // Doğru stratejiyi seç
+    const strategy = this.strategyFactory.getStrategy(method);
 
-  async createPayment(data: { orderId: number; amount: number; method: string; status: string }): Promise<Payment> {
-    const payment = this.paymentRepository.create({
-      order: { id: data.orderId } as Partial<Order>, // Partial<Order> ile sadece ID geçiyoruz
-      amount: data.amount,
-      method: data.method,
-      status: data.status,
+    // Strategy ile işlem
+    const response = await strategy.processPayment({
+      amount,
+      orderId: order.id,
     });
 
-    return this.paymentRepository.save(payment);
+    if (response.status === 'SUCCESS') {
+      payment.status = PaymentStatus.COMPLETED;
+      payment.transactionId = response.transactionId;
+      await this.paymentRepository.save(payment);
+      return payment;
+    } else {
+      payment.status = PaymentStatus.FAILED;
+      await this.paymentRepository.save(payment);
+      throw new BadRequestException(`Payment Failed: ${response.errorMessage}`);
+    }
   }
 
-  async updatePaymentStatus(id: number, status: string): Promise<Payment> {
-    const payment = await this.paymentRepository.findOne({ where: { id } });
+  /**
+   * İade/Refund örneği
+   */
+  async refundPayment(paymentId: number, refundAmount: number): Promise<boolean> {
+    const payment = await this.paymentRepository.findOne({
+      where: { id: paymentId }, // ID ile arama yapmak için 'where' kullanılır
+    });
+
     if (!payment) {
-      throw new Error('Payment not found');
+      throw new BadRequestException('Payment not found');
     }
-    payment.status = status;
-    return this.paymentRepository.save(payment);
+    if (!payment.transactionId) {
+      throw new BadRequestException('No transactionId for this payment');
+    }
+
+    // Strategy
+    const strategy = this.strategyFactory.getStrategy(payment.method);
+
+    // Refund destekleniyor mu?
+    if (!strategy.refundPayment) {
+      throw new BadRequestException('Refund not supported for this method');
+    }
+
+    const result = await strategy.refundPayment(payment.transactionId, refundAmount);
+    if (result) {
+      payment.status = PaymentStatus.REFUNDED;
+      await this.paymentRepository.save(payment);
+      return true;
+    }
+    return false;
   }
 }

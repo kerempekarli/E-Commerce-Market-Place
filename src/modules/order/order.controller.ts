@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
 import { OrderService } from './order.service';
 
 @Controller('orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
+
+  @Post()
+  async create(@Body() body: { userId: number; items: { productId: number; quantity: number; price: number }[] }) {
+    return this.orderService.createOrder(body);
+  }
 
   @Get()
   async findAll() {
@@ -12,11 +17,11 @@ export class OrderController {
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return this.orderService.findOne(Number(id));
+    return this.orderService.findOne(+id);
   }
 
-  @Post()
-  async createOrder(@Body() body: { userId: number; items: { productId: number; quantity: number; price: number }[] }) {
-    return this.orderService.createOrder(body.userId, body.items);
+  @Patch(':id/status')
+  async updateStatus(@Param('id') id: string, @Body() body: { status: string }) {
+    return this.orderService.updateStatus(+id, body.status);
   }
 }

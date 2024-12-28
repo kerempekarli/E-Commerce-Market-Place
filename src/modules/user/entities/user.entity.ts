@@ -35,14 +35,14 @@ export class User {
   @OneToMany(() => Product, (product) => product.seller)
   products: Product[];
 
-  @OneToMany(() => Order, (order) => order.user)
+  @OneToMany(() => Order, (order) => order.customer)
   orders: Order[];
 
   @OneToMany(() => Cart, (cart) => cart.user)
   carts: Cart[];
 
   @OneToMany(() => Review, (review) => review.user)
-  reviews: Review[];
+  reviews: Review[]; // Kullanıcının yazdığı yorumlar
 
   @OneToMany(() => Comment, (comment) => comment.user)
   comments: Comment[];

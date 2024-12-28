@@ -10,10 +10,16 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { ReviewModule } from './modules/review/review.module';
 import { typeOrmConfig } from './config/typeorm.config'; // Eğer TS dosyası kullanıyorsanız
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserController } from './user/user.controller';
+import { UserController } from './modules/user/user.controller';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Tüm modüllerde kullanılabilsin
+      envFilePath: '.env', // .env dosyasının yolu
+    }),
+    TypeOrmModule.forRoot(typeOrmConfig),
     AuthModule,
     UserModule,
     ProductModule,
@@ -21,7 +27,6 @@ import { UserController } from './user/user.controller';
     CartModule,
     PaymentModule,
     ReviewModule,
-    TypeOrmModule.forRoot(typeOrmConfig),
   ],
   controllers: [AppController, UserController],
   providers: [AppService],

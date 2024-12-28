@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
 import { ReviewService } from './review.service';
 
 @Controller('reviews')
@@ -10,21 +10,26 @@ export class ReviewController {
     return this.reviewService.findAll();
   }
 
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.reviewService.findOne(+id);
+  }
+
   @Post()
-  async create(
+  async createReview(
     @Body()
     body: {
-      rating: number;
-      comment: string;
       userId: number;
       productId: number;
+      rating: number;
+      comment: string;
     },
   ) {
-    return this.reviewService.createReview({
-      rating: body.rating,
-      comment: body.comment,
-      user: { id: body.userId },
-      product: { id: body.productId },
-    });
+    return this.reviewService.createReview(body);
+  }
+
+  @Delete(':id')
+  async deleteReview(@Param('id') id: string) {
+    return this.reviewService.deleteReview(+id);
   }
 }

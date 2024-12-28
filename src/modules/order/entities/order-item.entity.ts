@@ -1,32 +1,25 @@
-import { Entity, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { Order } from './order.entity';
 import { Product } from '../../product/entities/product.entity';
-
-// src/modules/order/entities/order-item.entity.ts
 
 @Entity()
 export class OrderItem {
   @PrimaryGeneratedColumn()
   id: number;
 
-  // Hangi siparişin parçası?
+  // Bu OrderItem hangi siparişe ait?
   @ManyToOne(() => Order, (order) => order.items, { onDelete: 'CASCADE' })
   order: Order;
 
-  // Hangi ürün?
+  // Ürün. Örneğin tekil bir Product’a referans veriyoruz.
   @ManyToOne(() => Product, { onDelete: 'CASCADE' })
   product: Product;
 
-  // Ürün fiyatı (temel fiyat) + varyant farkları
-  @Column('decimal', { precision: 10, scale: 2 })
-  price: number;
-
-  // Adet
-  @Column()
+  // Bu kalem için adet
+  @Column({ default: 1 })
   quantity: number;
 
-  // Seçilen varyant opsiyonlarının ID listesi
-  // Örnek: [4, 10] -> Renk:Red(4), Beden:M(10)
-  @Column('int', { array: true, nullable: true })
-  variantOptionIds: number[] | null;
+  // Bu kalem için ürünün fiyatı (varyant farkları dahil)
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  price: number;
 }

@@ -6,8 +6,8 @@ import { User } from '../user/entities/user.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { GoogleAuthController } from './google-auth.controller';
-import { FacebookAuthController } from './facebook-auth.controller';
+import { GoogleAuthService } from './google-auth.service';
+import { FacebookAuthService } from './facebook-auth.service';
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import { FacebookAuthController } from './facebook-auth.controller';
       signOptions: { expiresIn: '1h' }, // Token geçerlilik süresi
     }),
   ],
-  providers: [AuthService, JwtStrategy],
-  controllers: [AuthController, GoogleAuthController, FacebookAuthController],
+  providers: [AuthService, JwtStrategy, GoogleAuthService, FacebookAuthService],
+  controllers: [AuthController]
 })
 export class AuthModule {}
